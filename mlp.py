@@ -8,7 +8,7 @@ class MLP(torch.nn.Module):
         self.features = features
         self.horizon = horizon
         self.n_hidden = n_hidden
-        self.dr = 0.1
+        self.dr = 0.25
         self.mlp = torch.nn.Sequential(
             torch.nn.Linear(in_features= self.lookback*self.features, out_features=self.n_hidden),
             torch.nn.ReLU(),

@@ -24,22 +24,36 @@ def pipe_para_mlp(raw_data, lookback=8, horizon= 1):
     #no olvidar el preape
     x_train = mlp_prepare(x_train)   
     x_test = mlp_prepare(x_test)
-    return x_train, y_train, x_test, y_test, scaler   
+    return x_train, y_train, x_test, y_test, scaler
+
+def descaling(y, scaler):
+    '''
+    scaler interpret 4 column arrays
+    si se predice un horizonte, hay que desenvolver los arrays y volverlos a la forma previa
+    y debe ser un array de python
+    '''
+    n_batch = y.shape[0]
+    n_horizon = y.shape[1]
+    y = y.reshape(n_batch*n_horizon, 1)
+    y = scaler.inverse_transform(np.hstack([np.empty(shape=(n_batch*n_horizon,3)), y]))
+    return y[:,-1].reshape(n_batch, n_horizon)
+
 
 
 
 if __name__ == '__main__':
 
-    is_train = False
+    #leemos y tenemos un array de numpy
+    raw_data = read_table()
+    #----- MLP CASO ------
+    lookback = 8
+    horizon = 2
+    x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=lookback, horizon=horizon)
+    is_train = True
     if is_train:
-        #leemos y tenemos un array de numpy
-        raw_data = read_table()
-        #----- MLP CASO ------
-        x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=8, horizon=1)
-
         # creamos un model
 
-        mlp = MLP(lookback= 8, features= 4, horizon= 1, n_hidden= 64)
+        mlp = MLP(lookback= lookback, features= 4, horizon= horizon, n_hidden= 64)
 
         # creamos un optimizador
         # elegimos un criterio de perdida
@@ -48,7 +62,7 @@ if __name__ == '__main__':
         criterio = torch.nn.MSELoss()
 
         # definimos el numero epocas y entrenamos
-        epochs = 2000
+        epochs = 1000
         history = []
         history_test = []
         best_test_loss = 100
@@ -82,19 +96,16 @@ if __name__ == '__main__':
         torch.save(mlp.state_dict(), './mlp_statedict.pth')
 
     else:
-        #leemos y tenemos un array de numpy
-        raw_data = read_table()
-        #----- MLP CASO ------
-        x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=8, horizon=1)
+
         mlp = MLP(lookback=8, features=4 , horizon= 1, n_hidden=64)
         mlp.load_state_dict(torch.load('./mlp_statedict.pth'))
         mlp.train()
 
     # desescalamos y predecimos
+    mlp.eval()
     y_pred = mlp(torch.FloatTensor(x_tst)).detach().numpy()
-    
-    y_pred_descaled = scaler.inverse_transform(np.hstack([np.empty(shape=(y_pred.shape[0],3)), y_pred]))[:,-1]
-    y_tst_descaled = scaler.inverse_transform(np.hstack([np.empty(shape=(y_tst.shape[0],3)), y_tst]))[:,-1]
+    y_pred_descaled = descaling(y_pred,scaler)
+    y_tst_descaled = descaling(y_tst,scaler)
 
     plt.plot(y_pred_descaled, 'bo', label= 'prediccion')
     plt.plot(y_tst_descaled, 'rx', label= 'casos verdaderos')
