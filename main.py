@@ -83,9 +83,9 @@ if __name__ == '__main__':
 
     lookback = 12
     horizon = 1
-    is_train = False
+    is_train = True  # con este entrenan modelos
 
-    # creamos un model
+    # creamos un modelo
     if model_type == 'MLP':
         x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=lookback, horizon=horizon)
         model = MLP(lookback= lookback, features= 4, horizon= horizon, n_hidden= 64)
