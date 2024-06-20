@@ -54,6 +54,24 @@ def descaling(y, scaler):
     return y[:,-1].reshape(n_batch, n_horizon)
 
 
+def confidence_estimation(model, scaler, x_test, y_test):
+    maes = []
+    model.train()
+    for i in range(1000):
+        y_pred = model(torch.FloatTensor(x_test)).detach().numpy()
+        y_pred_descaled = descaling(y_pred,scaler)
+        y_tst_descaled = descaling(y_test,scaler)
+        mae_test = mean_absolute_error(y_tst_descaled,y_pred_descaled )
+        maes.append(mae_test)
+
+    model.eval()
+    y_pred = model(torch.FloatTensor(x_test)).detach().numpy()
+    y_pred_descaled = descaling(y_pred,scaler)
+    y_tst_descaled = descaling(y_test,scaler)
+    best_pred = mean_absolute_error(y_tst_descaled,y_pred_descaled )
+
+    return best_pred, np.array(maes) 
+
 
 
 if __name__ == '__main__':
@@ -65,7 +83,7 @@ if __name__ == '__main__':
 
     lookback = 12
     horizon = 1
-    is_train = True
+    is_train = False
 
     # creamos un model
     if model_type == 'MLP':
@@ -131,6 +149,10 @@ if __name__ == '__main__':
     mae_test = mean_absolute_error(y_tst_descaled,y_pred_descaled )
     print(f'MAE sobre test = {mae_test}')
 
-
-
-
+    # calculos de intervalos de confianza
+    best_mae, results = confidence_estimation(model, scaler, x_tst, y_tst)
+    print(f'MAE: media sobre 1000 evaluaciones con dropout: {results.mean()}. Desviacion estandar {results.std()}')
+    print(f'MAE del mejor modelo: {best_mae}')
+    plt.title('Realizacion de 1000 evaluaciones')
+    plt.hist(results, 50)
+    plt.show()
