@@ -86,7 +86,7 @@ if __name__ == '__main__':
         criterio = torch.nn.MSELoss()
 
         # definimos el numero epocas y entrenamos
-        epochs = 10000
+        epochs = 5000
         history = []
         history_test = []
         best_test_loss = 100
