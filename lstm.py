@@ -12,13 +12,12 @@ class LSTM(torch.nn.Module):
                                   hidden_size= self.n_hidden,
                                   num_layers= 3,
                                   batch_first= True,
-                                  dropout= 0.25)
+                                  dropout= 0.5)
         self.linear = torch.nn.Linear(in_features=self.n_hidden, out_features=self.horizon)
         self.sigmoid = torch.nn.Sigmoid()
         
     def forward(self, x):
         x, h = self.lstm(x)
-        print(x.shape)
         x = self.linear(x[:,-1,:])
         x = self.sigmoid(x)
         return x

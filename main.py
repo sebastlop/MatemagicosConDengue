@@ -21,9 +21,24 @@ def pipe_para_mlp(raw_data, lookback=8, horizon= 1):
     # crear las x y las y
     x_train, y_train = create_xy(train_scaled, lookback=lookback, horizon= horizon)
     x_test, y_test = create_xy(test_scaled, lookback=lookback, horizon= horizon)
-    #no olvidar el preape
+    #no olvidar el prepare
     x_train = mlp_prepare(x_train)   
     x_test = mlp_prepare(x_test)
+    return x_train, y_train, x_test, y_test, scaler
+
+def pipe_para_lstm(raw_data, lookback=8, horizon= 1):
+    #liquidamos los timestamps
+    raw_data = liquidar_timestamps(raw_data)
+    # separamos train de test
+    train, test = train_test_split(raw_data, 0.3)
+    # escalamos las variables
+    scaler = MinMaxScaler()
+    train_scaled = scaler.fit_transform(train)
+    test_scaled = scaler.transform(test)
+    # crear las x y las y
+    x_train, y_train = create_xy(train_scaled, lookback=lookback, horizon= horizon)
+    x_test, y_test = create_xy(test_scaled, lookback=lookback, horizon= horizon)
+
     return x_train, y_train, x_test, y_test, scaler
 
 def descaling(y, scaler):
@@ -45,65 +60,67 @@ if __name__ == '__main__':
 
     #leemos y tenemos un array de numpy
     raw_data = read_table()
-    #----- MLP CASO ------
-    lookback = 8
-    horizon = 2
-    x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=lookback, horizon=horizon)
+    #----- MLP /LSTM  ------
+    model_type = 'LSTM' 
+
+    lookback = 12
+    horizon = 1
     is_train = True
+
+    # creamos un model
+    if model_type == 'MLP':
+        x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=lookback, horizon=horizon)
+        model = MLP(lookback= lookback, features= 4, horizon= horizon, n_hidden= 64)
+        filename = './mlp_statedict.pth'
+
+    elif model_type == 'LSTM':
+        x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_lstm(raw_data=raw_data, lookback=lookback, horizon=horizon)
+        model = LSTM(features= 4, horizon= horizon, n_hidden= 64)
+        filename = './lstm_statedict.pth'
+
     if is_train:
-        # creamos un model
-
-        mlp = MLP(lookback= lookback, features= 4, horizon= horizon, n_hidden= 64)
-
         # creamos un optimizador
         # elegimos un criterio de perdida
 
-        optim = torch.optim.Adam(mlp.parameters(), lr = 1e-3)
+        optim = torch.optim.Adam(model.parameters(), lr = 1e-3)
         criterio = torch.nn.MSELoss()
 
         # definimos el numero epocas y entrenamos
-        epochs = 1000
+        epochs = 10000
         history = []
         history_test = []
         best_test_loss = 100
         for e in range(epochs):
             x = torch.FloatTensor(x_tr)
-            y_pred = mlp(x)
+            y_pred = model(x)
             loss = criterio(torch.FloatTensor(y_tr), y_pred)
 
             optim.zero_grad()  # pongo en 0 los gradiente
             loss.backward()     # calculo las derivadas respecto de los parametros
             optim.step()        #hago un descenso en la direccion opuesta al gradiente
-            if e%10 == 0:
-                print(loss.item())
             history.append(loss.item())
 
             with torch.no_grad():
-                mlp.eval()
+                model.eval()
                 x = torch.FloatTensor(x_tst)
-                y_pred = mlp(x)
+                y_pred = model(x)
                 tst_loss = criterio(torch.FloatTensor(y_tst), y_pred).item()
                 history_test.append(tst_loss)
                 if tst_loss < best_test_loss:
-                    torch.save(mlp.state_dict(), './mlp_statedict.pth')
+                    torch.save(model.state_dict(), filename)
                     best_test_loss = tst_loss
+                if e%100 == 0:
+                    print(f'epoch: {e} - training loss: {loss.item()} - test loss: {tst_loss}')
 
 
         plt.semilogy(history)
         plt.semilogy(history_test)
         plt.show()
 
-        torch.save(mlp.state_dict(), './mlp_statedict.pth')
-
-    else:
-
-        mlp = MLP(lookback=8, features=4 , horizon= 1, n_hidden=64)
-        mlp.load_state_dict(torch.load('./mlp_statedict.pth'))
-        mlp.train()
-
     # desescalamos y predecimos
-    mlp.eval()
-    y_pred = mlp(torch.FloatTensor(x_tst)).detach().numpy()
+    model.load_state_dict(torch.load(filename))
+    model.eval()
+    y_pred = model(torch.FloatTensor(x_tst)).detach().numpy()
     y_pred_descaled = descaling(y_pred,scaler)
     y_tst_descaled = descaling(y_tst,scaler)
 
@@ -112,7 +129,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     mae_test = mean_absolute_error(y_tst_descaled,y_pred_descaled )
-    print(mae_test)
+    print(f'MAE sobre test = {mae_test}')
 
 
 
