@@ -1,9 +1,12 @@
 import numpy as np
+import datetime
 from read import read_table
 # El primer dataset recibe #temp, hum, precip, casos
 
 def liquidar_timestamps(data):
-    return data[:,1:]
+    data[:,0] = np.array([t.month for t in data[:,0]])
+    # [t.isocalendar()[1] for t in timestamps]  # para tener semanas
+    return data
 
 def create_xy(data, lookback=4, horizon=1):
     x = []
@@ -26,6 +29,11 @@ def mlp_prepare(x):
 if __name__ == '__main__':
 
     data = read_table()
+    liquidar_timestamps(data)
+    exit()
+
+
+
     train, test = train_test_split(data)
     print(train.shape, test.shape)
     x,y  = create_xy(train, lookback=5, horizon=1)

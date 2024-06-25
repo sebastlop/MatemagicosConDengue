@@ -13,7 +13,7 @@ def pipe_para_mlp(raw_data, lookback=8, horizon= 1):
     #liquidamos los timestamps
     raw_data = liquidar_timestamps(raw_data)
     # separamos train de test
-    train, test = train_test_split(raw_data, 0.3)
+    train, test = train_test_split(raw_data, 0.15)
     # escalamos las variables
     scaler = MinMaxScaler()
     train_scaled = scaler.fit_transform(train)
@@ -30,7 +30,7 @@ def pipe_para_lstm(raw_data, lookback=8, horizon= 1):
     #liquidamos los timestamps
     raw_data = liquidar_timestamps(raw_data)
     # separamos train de test
-    train, test = train_test_split(raw_data, 0.3)
+    train, test = train_test_split(raw_data, 0.15)
     # escalamos las variables
     scaler = MinMaxScaler()
     train_scaled = scaler.fit_transform(train)
@@ -50,7 +50,7 @@ def descaling(y, scaler):
     n_batch = y.shape[0]
     n_horizon = y.shape[1]
     y = y.reshape(n_batch*n_horizon, 1)
-    y = scaler.inverse_transform(np.hstack([np.empty(shape=(n_batch*n_horizon,3)), y]))
+    y = scaler.inverse_transform(np.hstack([np.empty(shape=(n_batch*n_horizon,4)), y]))
     return y[:,-1].reshape(n_batch, n_horizon)
 
 
@@ -73,7 +73,6 @@ def confidence_estimation(model, scaler, x_test, y_test):
     return best_pred, np.array(maes) 
 
 
-
 if __name__ == '__main__':
 
     #leemos y tenemos un array de numpy
@@ -81,19 +80,19 @@ if __name__ == '__main__':
     #----- MLP /LSTM  ------
     model_type = 'LSTM' 
 
-    lookback = 12
-    horizon = 1
+    lookback = 48
+    horizon = 8
     is_train = True  # con este entrenan modelos
 
     # creamos un modelo
     if model_type == 'MLP':
         x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_mlp(raw_data=raw_data, lookback=lookback, horizon=horizon)
-        model = MLP(lookback= lookback, features= 4, horizon= horizon, n_hidden= 64)
+        model = MLP(lookback= lookback, features= 5, horizon= horizon, n_hidden= 64)
         filename = './mlp_statedict.pth'
 
     elif model_type == 'LSTM':
         x_tr, y_tr, x_tst, y_tst, scaler = pipe_para_lstm(raw_data=raw_data, lookback=lookback, horizon=horizon)
-        model = LSTM(features= 4, horizon= horizon, n_hidden= 64)
+        model = LSTM(features= 5, horizon= horizon, n_hidden= 64)
         filename = './lstm_statedict.pth'
 
     if is_train:
@@ -104,11 +103,12 @@ if __name__ == '__main__':
         criterio = torch.nn.MSELoss()
 
         # definimos el numero epocas y entrenamos
-        epochs = 5000
+        epochs = 3000
         history = []
         history_test = []
         best_test_loss = 100
         for e in range(epochs):
+            model.train()
             x = torch.FloatTensor(x_tr)
             y_pred = model(x)
             loss = criterio(torch.FloatTensor(y_tr), y_pred)
@@ -142,10 +142,11 @@ if __name__ == '__main__':
     y_pred_descaled = descaling(y_pred,scaler)
     y_tst_descaled = descaling(y_tst,scaler)
 
-    plt.plot(y_pred_descaled, 'bo', label= 'prediccion')
-    plt.plot(y_tst_descaled, 'rx', label= 'casos verdaderos')
-    plt.legend()
-    plt.show()
+    for i in range(10):
+        plt.plot(np.round(y_pred_descaled[-i],0), 'bo', label= 'prediccion')
+        plt.plot(y_tst_descaled[-i], 'rx', label= 'casos verdaderos')
+        plt.legend()
+        plt.show()
     mae_test = mean_absolute_error(y_tst_descaled,y_pred_descaled )
     print(f'MAE sobre test = {mae_test}')
 
@@ -156,3 +157,6 @@ if __name__ == '__main__':
     plt.title('Realizacion de 1000 evaluaciones')
     plt.hist(results, 50)
     plt.show()
+
+
+# Tomar un modelo y predecir una porcion del año que esté como test
